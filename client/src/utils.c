@@ -20,19 +20,33 @@ int crear_conexion(char *ip, char* puerto)
 {
 	struct addrinfo hints;
 	struct addrinfo *server_info;
+	int error;
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
+	//hints.ai_flags = AI_PASSIVE; esto es para server
 
-	getaddrinfo(ip, puerto, &hints, &server_info);
+	error=getaddrinfo(ip, puerto, &hints, &server_info);
+	if (error!=0){
+		printf("getaddrinfo: %s\n", gai_strerror(error));
+		abort();
+	}
 
 	// Ahora vamos a crear el socket.
-	int socket_cliente = 0;
+	int socket_cliente = socket(server_info->ai_family,server_info->ai_socktype,server_info->ai_protocol);
+	if(socket_cliente==-1){
+		printf("Error al generar socket cliente");
+		abort();
+	}
 
 	// Ahora que tenemos el socket, vamos a conectarlo
-
+	error=connect(socket_cliente,server_info->ai_addr,server_info->ai_addrlen);
+	if(error!=0){
+		perror("conexión: ");
+		abort();
+	}
+	printf("Conexión exitosa!");
 
 	freeaddrinfo(server_info);
 
@@ -41,17 +55,17 @@ int crear_conexion(char *ip, char* puerto)
 
 void enviar_mensaje(char* mensaje, int socket_cliente)
 {
-	t_paquete* paquete = malloc(sizeof(t_paquete));
+	t_paquete* paquete = malloc(sizeof(t_paquete)); //Inicializa puntero a t_paquete
 
-	paquete->codigo_operacion = MENSAJE;
-	paquete->buffer = malloc(sizeof(t_buffer));
-	paquete->buffer->size = strlen(mensaje) + 1;
-	paquete->buffer->stream = malloc(paquete->buffer->size);
-	memcpy(paquete->buffer->stream, mensaje, paquete->buffer->size);
+	paquete->codigo_operacion = MENSAJE; //asigna codigo MENSAJE del enum
+	paquete->buffer = malloc(sizeof(t_buffer)); //inicializa puntero
+	paquete->buffer->size = strlen(mensaje) + 1; //guarda el largo del mensaje + \0
+	paquete->buffer->stream = malloc(paquete->buffer->size); //inicializa puntero
+	memcpy(paquete->buffer->stream, mensaje, paquete->buffer->size); //guarda los bytes
 
-	int bytes = paquete->buffer->size + 2*sizeof(int);
+	int bytes = paquete->buffer->size + 2*sizeof(int); //el largo del mensaje + 2 enteros
 
-	void* a_enviar = serializar_paquete(paquete, bytes);
+	void* a_enviar = serializar_paquete(paquete, bytes); 
 
 	send(socket_cliente, a_enviar, bytes, 0);
 
